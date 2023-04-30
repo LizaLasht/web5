@@ -1,0 +1,7 @@
+body {
+    background-color:#f5f5dc;
+}
+
+.error {
+    border: 2px solid red;
+}
