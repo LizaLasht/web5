@@ -73,6 +73,7 @@
         <input type="checkbox" name="go"  value = "1" <?php if ($values['go'] == '1') {print 'checked';} ?>> C контрактом ознакомлен(a)
       </label><br/>
       <input type="submit" value="Отправить">
+      <?php if (!empty($_SESSION['login'])) {echo '<input type="hidden" name="token" value="' . $_SESSION["token"] . '">'; } ?>
   </form>
 </body>
 </html>
