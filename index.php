@@ -65,17 +65,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET') {
   }
 
   $values = array();
-  $values['name'] = empty($_COOKIE['name_value']) ? '' : $_COOKIE['name_value'];
-  $values['email'] = empty($_COOKIE['email_value']) ? '' : $_COOKIE['email_value'];
-  $values['year'] = empty($_COOKIE['year_value']) ? '' : $_COOKIE['year_value'];
-  $values['gender'] = empty($_COOKIE['gender_value']) ? '' : $_COOKIE['gender_value'];
-  $values['limbs'] = empty($_COOKIE['limbs_value']) ? '' : $_COOKIE['limbs_value'];
+  $values['name'] = empty($_COOKIE['name_value']) ? '' : htmlspecialchars(strip_tags($_COOKIE['name_value']));
+  $values['email'] = empty($_COOKIE['email_value']) ? '' : htmlspecialchars(strip_tags($_COOKIE['email_value']));
+  $values['year'] = empty($_COOKIE['year_value']) ? '' : htmlspecialchars(strip_tags($_COOKIE['year_value']));
+  $values['gender'] = empty($_COOKIE['gender_value']) ? '' : htmlspecialchars(strip_tags($_COOKIE['gender_value']));
+  $values['limbs'] = empty($_COOKIE['limbs_value']) ? '' : htmlspecialchars(strip_tags($_COOKIE['limbs_value']));
   $values['abilities'] = empty($_COOKIE['abilities_value']) ? [] : json_decode($_COOKIE['abilities_value']);
-  $values['bio'] = empty($_COOKIE['bio_value']) ? '' : $_COOKIE['bio_value'];
-  $values['go'] = empty($_COOKIE['go_value']) ? '' : $_COOKIE['go_value'];
+  $values['bio'] = empty($_COOKIE['bio_value']) ? '' : htmlspecialchars(strip_tags($_COOKIE['bio_value']));
+  $values['go'] = empty($_COOKIE['go_value']) ? '' : htmlspecialchars(strip_tags($_COOKIE['go_value']));
 
   if (count(array_filter($errors)) === 0 && !empty($_COOKIE[session_name()]) &&
       session_start() && !empty($_SESSION['login'])) {
+    $_SESSION['token'] = bin2hex(random_bytes(32));
+    echo $_SESSION['token'];
     $login = $_SESSION['login'];
     try {
       $stmt = $db->prepare("SELECT p_id FROM users WHERE login = ?");
@@ -91,25 +93,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET') {
       $abil = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
 
       if (!empty($dates[0]['name'])) {
-        $values['name'] = $dates[0]['name'];
+        $values['name'] = htmlspecialchars(strip_tags($dates[0]['name']));
       }
       if (!empty($dates[0]['email'])) {
-        $values['email'] = $dates[0]['email'];
+        $values['email'] = htmlspecialchars(strip_tags($dates[0]['email']));
       }
       if (!empty($dates[0]['year'])) {
-        $values['year'] = $dates[0]['year'];
+        $values['year'] = htmlspecialchars(strip_tags($dates[0]['year']));
       }
       if (!empty($dates[0]['gender'])) {
-        $values['gender'] = $dates[0]['gender'];
+        $values['gender'] = htmlspecialchars(strip_tags($dates[0]['gender']));
       }
       if (!empty($dates[0]['limbs'])) {
-        $values['limbs'] = $dates[0]['limbs'];
+        $values['limbs'] = htmlspecialchars(strip_tags($dates[0]['limbs']));
       }
       if (!empty($dates[0]['bio'])) {
-        $values['bio'] = $dates[0]['bio'];
+        $values['bio'] = htmlspecialchars(strip_tags($dates[0]['bio']));
       } 
       if (!empty($dates[0]['go'])) {
-        $values['go'] = $dates[0]['go'];
+        $values['go'] = htmlspecialchars(strip_tags($dates[0]['go']));
       } 
     } catch (PDOException $e) {
         print('Error : ' . $e->getMessage());
@@ -196,34 +198,37 @@ else {
     setcookie('go_error', '', 100000);
   }
 
-  if (!empty($_COOKIE[session_name()]) &&
-      session_start() && !empty($_SESSION['login'])) {
-    $login = $_SESSION['login'];
-    try {
-      $stmt = $db->prepare("SELECT p_id FROM users WHERE login = ?");
-      $stmt->execute([$login]);
-      $p_id = $stmt->fetchColumn();
+  if (!empty($_COOKIE[session_name()]) && session_start() && !empty($_SESSION['login'])) {
+    if (!empty($_POST['token']) && hash_equals($_POST['token'], $_SESSION['token'])) {
+      $login = $_SESSION['login'];
+      try {
+        $stmt = $db->prepare("SELECT p_id FROM users WHERE login = ?");
+        $stmt->execute([$login]);
+        $p_id = $stmt->fetchColumn();
 
-      $stmt = $db->prepare("UPDATE person SET name = ?, email = ?, year = ?, gender = ?, limbs = ?, bio = ?, go = ?
-        WHERE p_id = ?");
-      $stmt->execute([$name, $email, $year, $gender, $limbs, $bio, $go, $p_id]);
+        $stmt = $db->prepare("UPDATE person SET name = ?, email = ?, year = ?, gender = ?, limbs = ?, bio = ?, go = ?
+          WHERE p_id = ?");
+        $stmt->execute([$name, $email, $year, $gender, $limbs, $bio, $go, $p_id]);
 
-      $stmt = $db->prepare("SELECT sup_id FROM person_superpower WHERE p_id = ?");
-      $stmt->execute([$p_id]);
-      $abil = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
-
-      if (array_diff($abil, $_POST['abilities'])) {
-        $stmt = $db->prepare("DELETE FROM person_superpower WHERE p_id = ?");
+        $stmt = $db->prepare("SELECT sup_id FROM person_superpower WHERE p_id = ?");
         $stmt->execute([$p_id]);
+        $abil = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
 
-        $stmt = $db->prepare("INSERT INTO person_superpower (p_id, sup_id) VALUES (?, ?)");
-        foreach ($_POST['abilities'] as $sup_id) {
-          $stmt->execute([$p_id, $sup_id]);
+        if (array_diff($abil, $_POST['abilities'])) {
+          $stmt = $db->prepare("DELETE FROM person_superpower WHERE p_id = ?");
+          $stmt->execute([$p_id]);
+
+          $stmt = $db->prepare("INSERT INTO person_superpower (p_id, sup_id) VALUES (?, ?)");
+          foreach ($_POST['abilities'] as $sup_id) {
+            $stmt->execute([$p_id, $sup_id]);
+          }
         }
+      } catch (PDOException $e) {
+        print('Error : ' . $e->getMessage());
+        exit();
       }
-    } catch (PDOException $e) {
-      print('Error : ' . $e->getMessage());
-      exit();
+    } else {
+      die('Ошибка CSRF: недопустимый токен');
     }
   }
   else {
